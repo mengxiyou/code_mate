@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>code_mate</title>
+  <style><!--STYLE--></style>
+</head>
+<body x-data="app" x-cloak>
+
+  <!-- 链路条(签名):HOST → 脉冲线 → 设备品牌环。状态携带在 :class(live/wait/offline) -->
+  <header class="link" :class="linkState">
+    <span class="link-host" x-text="t('host')"></span>
+    <span class="link-wire"><i class="pulse"></i></span>
+    <svg class="link-ring" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M5.7 18.3 A8.9 8.9 0 1 1 18.3 18.3" fill="none" stroke="currentColor"
+            stroke-width="3.8" stroke-linecap="round"/>
+    </svg>
+    <span class="link-label" x-text="linkLabel"></span>
+  </header>
+
+  <!-- 分段页签 -->
+  <nav class="tabs">
+    <button :class="{on: tab==='status'}"  @click="tab='status'"  x-text="t('tab_status')"></button>
+    <button :class="{on: tab==='setting'}" @click="tab='setting'" x-text="t('tab_setting')"></button>
+    <button :class="{on: tab==='about'}"   @click="tab='about'"   x-text="t('tab_about')"></button>
+  </nav>
+
+  <main>
+    <!-- ========== STATUS ========== -->
+    <section x-show="tab==='status'" class="pane">
+      <!-- 第一部分:公共状态 -->
+      <div class="grp">
+        <div class="eyebrow" x-text="t('ov')"></div>
+        <div class="row"><span class="k" x-text="t('device')"></span><span class="v" x-text="status.connected ? t('connected') : t('disconnected')"></span></div>
+        <div class="row"><span class="k" x-text="t('port')"></span><span class="v mono" x-text="status.port || '—'"></span></div>
+        <div class="row"><span class="k" x-text="t('fw')"></span><span class="v mono" x-text="status.fw || '—'"></span></div>
+        <div class="row"><span class="k" x-text="t('sync')"></span><span class="v" x-text="snapText"></span></div>
+        <div class="row"><span class="k" x-text="t('reg')"></span><span class="v" :class="hookClass" x-text="hookText"></span></div>
+        <div class="rowbtns">
+          <button class="btn" @click="reconnect()" x-text="t('reconnect')"></button>
+          <button class="btn" @click="install()" x-text="t('install_hook')"></button>
+        </div>
+      </div>
+
+      <!-- 第二部分:按 session 显示(账号级 5h/周 只出一次)-->
+      <div class="grp">
+        <div class="eyebrow" x-text="t('account')"></div>
+        <div class="barrow">
+          <span class="blabel">5H</span>
+          <span class="bar coral"><i :style="'width:'+acc('five_hour')+'%'"></i></span>
+          <span class="bpct mono" x-text="accTxt('five_hour')"></span>
+        </div>
+        <div class="barrow">
+          <span class="blabel">7D</span>
+          <span class="bar cyan"><i :style="'width:'+acc('seven_day')+'%'"></i></span>
+          <span class="bpct mono" x-text="accTxt('seven_day')"></span>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow"><span x-text="t('sessions')"></span> · <span x-text="instances.length"></span></div>
+        <p class="hint" x-show="instances.length===0" x-text="t('no_sessions')"></p>
+
+        <template x-for="i in instances" :key="i.session_id">
+          <div class="sess" :style="cardStyle(i)">
+            <div class="sess-head">
+              <span class="lamp" :class="{run: i.cc_running}" :style="lampStyle(i)"></span>
+              <span class="iname" x-text="i.session || t('unnamed')"></span>
+              <span class="tag mono" :style="tagStyle(i)" x-text="providerLabel(i)"></span>
+              <span class="smeta mono" x-text="(i.model||'—') + (i.mode ? ' · '+i.mode : '')"></span>
+            </div>
+            <div class="barrow">
+              <span class="blabel">CTX</span>
+              <span class="bar"><i :style="barFillStyle(i, ctxPct(i), 'meter_c')"></i></span>
+              <span class="bpct mono" x-text="ctxPct(i)+'%'"></span>
+              <span class="btok mono" x-text="tok(i)"></span>
+            </div>
+          </div>
+        </template>
+
+        <!-- SYSTEM 卡片(PC 监控;与 Claude 会话同列,数据源对称)-->
+        <div class="sess system" x-show="sysmon.ok" :style="cardStyle(sysmon)">
+          <div class="sess-head">
+            <span class="lamp sys" :style="lampStyle(sysmon)"></span>
+            <span class="iname"><span x-text="t('sys')"></span> · <span x-text="sysmon.host || 'PC'"></span></span>
+            <span class="tag mono" :style="tagStyle(sysmon)" x-text="providerLabel(sysmon)"></span>
+            <span class="smeta mono" x-text="sysmon.net || ''"></span>
+          </div>
+          <div class="row"><span class="k">CPU</span><span class="v mono" :style="valueStyle(sysmon, 'meter_c')" x-text="pct(sysmon.cpu_pct)"></span></div>
+          <div class="row"><span class="k" x-text="t('ram')"></span><span class="v mono" :style="valueStyle(sysmon, 'meter_a')" x-text="mem(sysmon.ram_used_mb, sysmon.ram_total_mb, sysmon.ram_pct)"></span></div>
+          <div class="row" x-show="sysmon.vram_ok"><span class="k" x-text="t('vram')"></span><span class="v mono" :style="valueStyle(sysmon, 'meter_b')" x-text="mem(sysmon.vram_used_mb, sysmon.vram_total_mb, sysmon.vram_pct)"></span></div>
+          <div class="row"><span class="k" x-text="t('disk')"></span><span class="v mono" x-text="disk(sysmon.disk_bps)"></span></div>
+          <div class="row"><span class="k" x-text="sysmon.cpu_temp!=null ? t('temp') : t('freq')"></span><span class="v mono" :style="valueStyle(sysmon, 'meter_c')" x-text="cpuSub"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SETTING ========== -->
+    <section x-show="tab==='setting'" class="pane">
+      <div class="grp">
+        <div class="eyebrow" x-text="t('basic')"></div>
+        <div class="row">
+          <span class="k" x-text="t('lang')"></span>
+          <select x-model="config.lang" @change="setLang()">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="k" x-text="t('autostart')"></span>
+          <label class="switch"><input type="checkbox" x-model="config.autostart" @change="setAutostart()"><span class="slider"></span></label>
+        </div>
+        <div class="row">
+          <span class="k" x-text="t('active_win')"></span>
+          <select x-model="config.instance_mode" @change="setMode()">
+            <option value="manual" x-text="t('mode_manual')"></option>
+            <option value="auto" x-text="t('mode_auto')"></option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">CLAUDE</div>
+        <div class="row">
+          <span class="k" x-text="t('fresh_thresh')"></span>
+          <span class="ctrl"><input type="number" min="15" max="600" step="5" x-model.number="config.fresh_sec" @change="setFreshSec()"><b x-text="t('unit_sec')"></b></span>
+        </div>
+        <div class="row"><span class="k" x-text="t('snap_path')"></span><span class="v mono path">~/.claude/code_mate/sessions/</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow" x-text="t('codex')"></div>
+        <div class="row"><span class="k" x-text="t('reg')"></span><span class="v" :class="codexHookClass" x-text="codexHookText"></span></div>
+        <div class="row"><span class="k" x-text="t('snap_path')"></span><span class="v mono path">~/.codex/sessions/</span></div>
+        <p class="hint" x-text="t('codex_hint')"></p>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow" x-text="t('sys')"></div>
+        <div class="row">
+          <span class="k" x-text="t('pc_screen')"></span>
+          <label class="switch amber"><input type="checkbox" x-model="config.system_screen" @change="setSystemScreen()"><span class="slider"></span></label>
+        </div>
+        <div class="row">
+          <span class="k" x-text="t('temp_unit')"></span>
+          <select x-model="config.temp_unit" @change="setTempUnit()">
+            <option value="C" x-text="t('unit_c')"></option>
+            <option value="F" x-text="t('unit_f')"></option>
+          </select>
+        </div>
+        <p class="hint" x-text="t('sys_hint')"></p>
+      </div>
+    </section>
+
+    <!-- ========== ABOUT ========== -->
+    <section x-show="tab==='about'" class="pane about">
+      <svg class="about-ring" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true">
+        <path d="M5.7 18.3 A8.9 8.9 0 1 1 18.3 18.3" fill="none" stroke="#FFB44E"
+              stroke-width="3.8" stroke-linecap="round"/>
+      </svg>
+      <div class="about-name">code_mate</div>
+      <div class="about-desc" x-text="t('about_desc')"></div>
+      <div class="about-rows">
+        <div class="row"><span class="k" x-text="t('version')"></span><span class="v mono" x-text="'v' + (version || '—')"></span></div>
+        <div class="row"><span class="k">GitHub</span><span class="v mono path" x-text="github"></span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer><span x-text="msg"></span></footer>
+  <!-- app.js 先跑(注册 alpine:init 监听 + IPC shim),Alpine 再执行(立即 start → 触发监听 → 遍历已解析的 DOM)。
+       ⚠️ Alpine CDN 版无 DOMContentLoaded 自延迟,内联脚本 defer 又无效,故必须置于 body 末尾且在 app.js 之后。 -->
+  <script><!--SCRIPT--></script>
+  <script><!--ALPINE--></script>
+</body>
+</html>

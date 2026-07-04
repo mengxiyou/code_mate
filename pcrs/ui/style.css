@@ -1,0 +1,213 @@
+/* code_mate 配置窗 —— 「操作台 / 仪器」方向(见 plan A0)。
+   深色 HUD,配色语义化(每色=一条遥测通道,与设备屏一致):
+   珊瑚橙=5h/会话/主操作 · 青=LIVE/链路 · 琥珀=上下文/需注意。 */
+:root {
+  --bg: #0B0E14;
+  --bg-lift: #10151D;   /* 抬起分组 / 输入底 */
+  --bg-sink: #07090D;   /* 内凹轨道 / 代码块 */
+  --coral: #FF6B3D;  --coral-hi: #FF8A5C;   /* 5h / 会话 / 主操作 */
+  --cyan: #2DE2E6;                          /* LIVE / 链路正常 */
+  --amber: #F2A53C;  --amber-hi: #FFC061;   /* 上下文 / 需注意 */
+  --text: #E8EDF2;
+  --sub: #9AA3B0;
+  --dim: #5C6675;
+  --line: #1E242C;
+  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --sans: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+[x-cloak] { display: none !important; }
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(120% 90% at 50% 0%, #11161E 0%, #0B0E14 55%, #07090D 100%);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- 链路条(签名)---------- */
+.link { display: flex; align-items: center; gap: 10px; padding: 14px 18px 12px; }
+.link-host { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; color: var(--sub); }
+.link-wire {
+  position: relative; flex: 1; height: 2px; border-radius: 2px;
+  background: var(--line);
+}
+.link-wire .pulse {
+  position: absolute; top: 50%; left: 0; width: 7px; height: 7px; margin-top: -3.5px;
+  border-radius: 50%; opacity: 0;
+}
+.link-ring {
+  flex-shrink: 0; color: var(--dim); transition: color .3s;
+  filter: drop-shadow(0 0 5px rgba(255, 180, 78, .35));
+}
+.link-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+  min-width: 54px; text-align: right; color: var(--dim);
+}
+
+/* LIVE:青线 + 流动脉冲(呼应设备工作时 LED 呼吸),环点亮琥珀 */
+.link.live .link-wire { background: linear-gradient(90deg, rgba(45,226,230,.15), var(--cyan)); }
+.link.live .link-wire .pulse { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); opacity: 1; animation: flow 2.4s linear infinite; }
+.link.live .link-ring { color: var(--amber); }
+.link.live .link-label { color: var(--cyan); }
+
+/* WAIT:琥珀、静止 */
+.link.wait .link-wire { background: linear-gradient(90deg, rgba(242,165,60,.15), var(--amber)); }
+.link.wait .link-ring { color: var(--amber); }
+.link.wait .link-label { color: var(--amber); }
+
+/* OFFLINE:灰、断成虚线,环灰 */
+.link.offline .link-wire { background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
+.link.offline .link-ring { color: var(--dim); }
+.link.offline .link-label { color: var(--dim); }
+
+@keyframes flow {
+  0%   { left: 0;    opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .link.live .link-wire .pulse { animation: none; left: 100%; }
+}
+
+/* ---------- 分段页签 ---------- */
+.tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.tabs button {
+  flex: 1; background: none; border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .14em; color: var(--dim);
+  padding: 10px 4px 9px; border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.tabs button:hover { color: var(--sub); }
+.tabs button.on { color: var(--text); border-bottom-color: var(--coral); }
+
+/* ---------- 内容区 ---------- */
+main { flex: 1; padding: 14px 16px 4px; overflow-y: auto; }
+.pane { animation: fade .12s ease-out; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.grp { margin-bottom: 16px; }
+.eyebrow {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--sub);
+  padding-bottom: 7px; margin-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.eyebrow::before { content: ""; width: 3px; height: 11px; border-radius: 2px; background: var(--coral); opacity: .7; }
+
+.row {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 30px; padding: 3px 2px;
+}
+.k { color: var(--sub); }
+.v { color: var(--text); text-align: right; max-width: 64%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v.good { color: var(--cyan); }
+.v.warn { color: var(--amber); }
+.mono { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.path { font-size: 11px; color: var(--dim); }
+
+.cmd {
+  background: var(--bg-sink); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 9px; margin: 6px 0 10px; color: var(--dim); font-size: 11px;
+  font-family: var(--mono); word-break: break-all;
+}
+
+.btn {
+  width: 100%; margin-top: 4px;
+  background: linear-gradient(180deg, #1b2330, #141a24); color: var(--text);
+  border: 1px solid #2a3340; border-radius: 8px; padding: 9px 12px; font-size: 13px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--coral); }
+.btn:active { background: #0f141c; }
+
+.hint { color: var(--dim); font-size: 11px; line-height: 1.55; margin: 6px 2px 0; }
+
+select {
+  background: var(--bg-lift); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 13px;
+  font-family: var(--sans);
+}
+
+.ctrl { display: flex; align-items: center; gap: 7px; }
+.ctrl input[type=number] {
+  width: 74px; background: var(--bg-lift); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 13px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right;
+}
+.ctrl input[type=number]:focus { outline: none; border-color: var(--coral); }
+.ctrl b { color: var(--sub); font-weight: 400; font-size: 12px; }
+
+/* 开关:默认青(HOST 项);.amber 变体(设备屏项) */
+.switch { position: relative; display: inline-block; width: 42px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--bg-lift); border: 1px solid var(--line); border-radius: 22px; transition: .15s;
+}
+.slider:before {
+  content: ""; position: absolute; height: 16px; width: 16px; left: 2px; top: 2px;
+  background: var(--dim); border-radius: 50%; transition: .15s;
+}
+.switch input:checked + .slider { background: rgba(45,226,230,.18); border-color: var(--cyan); }
+.switch input:checked + .slider:before { transform: translateX(20px); background: var(--cyan); }
+.switch.amber input:checked + .slider { background: rgba(242,165,60,.18); border-color: var(--amber); }
+.switch.amber input:checked + .slider:before { background: var(--amber); }
+
+/* 实例列表:行首身份灯(工作中=数据源主色点亮) */
+.row.inst { justify-content: flex-start; gap: 9px; }
+.lamp { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+.lamp.run { background: var(--coral); box-shadow: 0 0 7px var(--coral); }
+.iname { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+footer {
+  min-height: 22px; padding: 6px 2px 10px; text-align: center;
+  color: var(--cyan); font-size: 12px; font-family: var(--mono);
+}
+
+/* OVERVIEW 双按钮并排 */
+.rowbtns { display: flex; gap: 8px; margin-top: 6px; }
+.rowbtns .btn { margin-top: 0; }
+
+/* 会话卡片(STATUS 第二部分)+ SYSTEM 卡片 */
+.sess {
+  background: var(--bg-lift); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.sess-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.sess-head .iname { flex: 1; }
+.smeta { color: var(--dim); font-size: 11.5px; flex-shrink: 0; max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag {
+  color: var(--amber); border: 1px solid rgba(242,165,60,.35); border-radius: 4px;
+  padding: 1px 5px; font-size: 10.5px; flex-shrink: 0; max-width: 84px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lamp.sys { background: #6DCBFF; box-shadow: 0 0 7px #6DCBFF; }
+.sess.system { border-color: rgba(109,203,255,.38); }
+.sess.system .row { min-height: 24px; padding: 1px 0; }
+
+/* 用量进度条:账号块沿用 Claude 色;数据源卡片由 theme 覆盖。 */
+.barrow { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.blabel { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--sub); width: 26px; flex-shrink: 0; }
+.bar { flex: 1; height: 6px; background: var(--bg-sink); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 4px; width: 0; transition: width .4s ease; }
+.bar.amber > i { background: linear-gradient(90deg, var(--amber), var(--amber-hi)); }
+.bar.coral > i { background: linear-gradient(90deg, var(--coral), var(--coral-hi)); }
+.bar.cyan  > i { background: var(--cyan); }
+.bpct { width: 42px; text-align: right; color: var(--text); flex-shrink: 0; font-size: 12px; }
+.btok { color: var(--dim); font-size: 11px; flex-shrink: 0; }
+
+/* ABOUT */
+.about { text-align: center; padding-top: 20px; }
+.about-ring { filter: drop-shadow(0 0 6px rgba(255, 180, 78, .4)); }
+.about-name { font-size: 20px; font-weight: 700; color: var(--coral); letter-spacing: .5px; margin-top: 8px; }
+.about-desc { color: var(--sub); font-size: 12px; margin-top: 4px; }
+.about-rows { text-align: left; margin-top: 20px; }
+.about-rows .path { font-size: 12px; }

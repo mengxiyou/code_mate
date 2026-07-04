@@ -1,0 +1,9 @@
+# crates.io downloads can stall on some networks with HTTP/2 multiplexing
+# (parallel downloads hang at <1B/5min). Serial downloads plus a longer timeout
+# and more retries are reliable there, and harmless on good networks.
+[http]
+multiplexing = false
+timeout = 120
+
+[net]
+retry = 10

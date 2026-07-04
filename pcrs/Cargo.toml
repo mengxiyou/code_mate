@@ -1,0 +1,69 @@
+[package]
+name = "code_mate"
+version = "1.0.0"
+edition = "2021"
+description = "PC-side host for CodeMate: a USB desk display showing real-time Claude Code / Codex usage on an ESP32-S3"
+license = "MIT"
+repository = "https://github.com/mengxiyou/code_mate"
+authors = ["mengxiyou"]
+# 产物 exe 名 = CodeMate.exe(用户可见命名;包名/内部目录仍 code_mate)。autobins=false 关自动发现,
+# 否则 src/main.rs 会同时被发现为隐式 `code_mate` bin + 显式 `CodeMate` bin → 路径冲突报错。
+autobins = false
+
+[[bin]]
+name = "CodeMate"
+path = "src/main.rs"
+
+[dependencies]
+# preserve_order:改写用户 settings.json 时不打乱键序(对齐 Python dict 插入序;默认 BTreeMap 会字母重排)
+serde_json = { version = "1", features = ["preserve_order"] }
+# 阶段2:pid 存活判活只用 OpenProcess/CloseHandle → windows-sys(纯 FFI 绑定,近零体积)。
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_System_SystemInformation",   # 阶段4:GetLocalTime(日志本地时间戳);阶段12:GetSystemTimes/GlobalMemoryStatusEx
+    "Win32_System_Performance",          # 阶段12:PDH 磁盘活动 + GPU 显存用量计数器
+    "Win32_System_Registry",             # 阶段12:读显存容量(注册表 HardwareInformation.qwMemorySize)
+    "Win32_System_LibraryLoader",       # 阶段4:GetModuleHandleW(盒盖监听隐藏窗口)
+    "Win32_System_Power",               # 阶段4:RegisterPowerSettingNotification(盒盖事件)
+    "Win32_UI_WindowsAndMessaging",     # 阶段4:隐藏窗口 + 消息循环(盒盖监听)
+    "Win32_Graphics_Gdi",               # 阶段4:WNDCLASSW 依赖(HBRUSH/HICON)
+    "Win32_Storage_FileSystem",          # 阶段12:CreateFileW(打开已加载的 WinRing0 设备)
+    "Win32_System_IO",                   # 阶段12:DeviceIoControl(WinRing0 IOCTL 读 CPU 温度)
+    "Win32_System_Console",              # 阶段13:GUI 子系统下 CLI 子命令 AttachConsole 回连父终端(见 main.rs)
+    "Win32_System_Diagnostics_ToolHelp", # Codex 判活:进程快照扫 codex*(JSONL 无 pid,见 codex_source.rs)
+    "Win32_Security",                    # CreateFileW 安全属性类型(no-default headless 也需要)
+] }
+# 阶段3:transcript 的几个 markdown 正则 → regex-lite(比 regex 小,够用)。
+regex-lite = "0.1"
+# 阶段4:串口发现/握手/下发。serialport-rs 跨平台;Windows 走 SetupAPI 枚举(含 USB VID)。
+serialport = "4"
+# 阶段6 完整版 GUI(feature=ui):Tauri 底层那三个库,直用,无框架开销。
+# wry=WebView(Win 用 WebView2);tao=窗口/事件循环(winit 的 Tauri 分叉);tray-icon=系统托盘。
+wry = { version = "0.55", optional = true }
+tao = { version = "0.35", optional = true }
+tray-icon = { version = "0.24", optional = true }
+
+# 阶段12:把品牌环 "O" 嵌成 exe 文件图标(build.rs 生成多尺寸 .ico → winresource 调 SDK rc.exe 嵌入)。
+# 只在 Windows 主机/目标编译;纯 host 构建依赖,不进最终 exe 体积。
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+# 开发期编/链更快:只生成行号级调试信息(够 println 排障),少干活。
+[profile.dev]
+debug = 1
+
+# 体积优先(精简版要塞进设备 flash U 盘):opt-z + LTO + strip + panic=abort
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+
+[features]
+# 完整版 GUI 是**默认且唯一发行版**(842KB,既进设备 flash 又作单发,无需单列精简版)。
+# 仍保留无 ui 的 headless 构建作 fallback:`cargo build --no-default-features`。
+default = ["ui"]
+# Win32_Security:单实例 CreateMutexW 的 SECURITY_ATTRIBUTES;Win32_Storage_FileSystem:自安装判可移动盘(GetDriveTypeW)。
+ui = ["dep:wry", "dep:tao", "dep:tray-icon", "windows-sys/Win32_Storage_FileSystem"]

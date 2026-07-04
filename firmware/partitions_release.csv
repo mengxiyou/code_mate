@@ -1,0 +1,8 @@
+# code_mate release partitions (stage 10): single factory app + FAT storage (read-only U-disk).
+# Drop dual-OTA + spiffs. Firmware is only ~1.63MB (compressed font), so 3MB factory is ample.
+# 16MB flash: nvs (mode flag) + factory 3MB + storage FAT 8MB (holds 842KB installer, big margin).
+# ASCII only -- PlatformIO parses this CSV with the system codepage (GBK on zh-CN Windows).
+# Name,   Type, SubType,  Offset,   Size,     Flags
+nvs,      data, nvs,      0x9000,   0x7000,
+factory,  app,  factory,  0x10000,  0x300000,
+storage,  data, fat,      0x310000, 0x800000,
